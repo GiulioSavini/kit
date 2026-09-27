@@ -33,6 +33,46 @@ type pathFlags struct {
 	path string
 }
 
+// Run executes acfs and returns its process exit code.
+func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
+	if len(args) == 0 {
+		printUsage(stderr)
+		return exitUsage
+	}
+
+	command := args[0]
+	var err error
+	switch command {
+	case "list":
+		err = runList(ctx, args[1:], stdout)
+	case "walk":
+		err = runWalk(ctx, args[1:], stdout)
+	case "stat":
+		err = runStat(ctx, args[1:], stdout)
+	case "read":
+		err = runRead(ctx, args[1:], stdout)
+	case "write":
+		err = runWrite(ctx, args[1:], stdin)
+	case "mkdir":
+		err = runMkdir(ctx, args[1:])
+	case "remove":
+		err = runRemove(ctx, args[1:])
+	case "apply":
+		err = runApply(ctx, args[1:], stdout)
+	case "version":
+		err = runVersion(args[1:], stdout)
+	default:
+		printUsage(stderr)
+		return exitUsage
+	}
+
+	if err != nil {
+		writeErrorInternal(stderr, command, err)
+		return exitFailure
+	}
+	return exitSuccess
+}
+
 func newFlagSet(command string) *flag.FlagSet {
 	flags := flag.NewFlagSet(command, flag.ContinueOnError)
 	flags.SetOutput(io.Discard)
@@ -422,44 +462,4 @@ func writeErrorInternal(destination io.Writer, operation string, err error) {
 		response.Path = applyErr.Path
 	}
 	_ = encodeJSON(destination, response)
-}
-
-// Run executes acfs and returns its process exit code.
-func Run(ctx context.Context, args []string, stdin io.Reader, stdout, stderr io.Writer) int {
-	if len(args) == 0 {
-		printUsage(stderr)
-		return exitUsage
-	}
-
-	command := args[0]
-	var err error
-	switch command {
-	case "list":
-		err = runList(ctx, args[1:], stdout)
-	case "walk":
-		err = runWalk(ctx, args[1:], stdout)
-	case "stat":
-		err = runStat(ctx, args[1:], stdout)
-	case "read":
-		err = runRead(ctx, args[1:], stdout)
-	case "write":
-		err = runWrite(ctx, args[1:], stdin)
-	case "mkdir":
-		err = runMkdir(ctx, args[1:])
-	case "remove":
-		err = runRemove(ctx, args[1:])
-	case "apply":
-		err = runApply(ctx, args[1:], stdout)
-	case "version":
-		err = runVersion(args[1:], stdout)
-	default:
-		printUsage(stderr)
-		return exitUsage
-	}
-
-	if err != nil {
-		writeErrorInternal(stderr, command, err)
-		return exitFailure
-	}
-	return exitSuccess
 }

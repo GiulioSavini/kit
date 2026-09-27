@@ -46,6 +46,42 @@ func CopyDir(ctx context.Context, sourceRootPath, destinationRootPath string, op
 	return result, err
 }
 
+// MirrorDir makes destinationRootPath match sourceRootPath while updating files
+// and directories IN PLACE. Entries missing from the source, or whose type
+// differs, are removed first, then the source is copied over the result.
+//
+// The copy phase deliberately truncates and rewrites existing destination files
+// instead of using the default atomic temp-then-rename of Write: rename would
+// replace the inode, and a mirror runs against live project directories whose
+// files may be bind-mounted into running containers. Preserving inodes is the
+// point — do not "fix" this to be atomic. A destination file whose content
+// already matches the source is left entirely untouched (inode and mtime
+// preserved).
+//
+// MirrorOptions.Preserve names destination entries that must survive even
+// though the source omits them; a directory holding a preserved descendant is
+// descended into rather than removed wholesale. The copy phase always tolerates
+// unreadable source entries, because failing half-way through leaves the live
+// directory in a mixed state that is worse than one stale file (#3509, #3085).
+// Destination files the process cannot write are tolerated in the same spirit
+// (#3625): the stale file keeps its old content and the mirror carries on.
+func MirrorDir(ctx context.Context, sourceRootPath, destinationRootPath string, options acfstypes.MirrorOptions) error {
+	if err := validateDistinctRootsInternal(sourceRootPath, destinationRootPath); err != nil {
+		return err
+	}
+
+	preserve := make(map[string]struct{}, len(options.Preserve))
+	for _, entry := range options.Preserve {
+		preserve[filepath.Clean(entry)] = struct{}{}
+	}
+	if err := pruneDirectoryContentsInternal(ctx, sourceRootPath, destinationRootPath, preserve); err != nil {
+		return err
+	}
+
+	_, err := copyDirectoryContentsInternal(ctx, sourceRootPath, destinationRootPath, true, true, func(string) {})
+	return err
+}
+
 func copyDirectoryContentsInternal(ctx context.Context, sourceDir, destinationDir string, tolerate, mirror bool, record func(relativePath string)) (int, error) {
 	sourceRoot, err := os.OpenRoot(sourceDir)
 	if err != nil {
@@ -163,42 +199,6 @@ func (w *copyWalkerInternal) copyRegularFileInternal(relativePath string, entry 
 	}
 	w.copied++
 	return nil
-}
-
-// MirrorDir makes destinationRootPath match sourceRootPath while updating files
-// and directories IN PLACE. Entries missing from the source, or whose type
-// differs, are removed first, then the source is copied over the result.
-//
-// The copy phase deliberately truncates and rewrites existing destination files
-// instead of using the default atomic temp-then-rename of Write: rename would
-// replace the inode, and a mirror runs against live project directories whose
-// files may be bind-mounted into running containers. Preserving inodes is the
-// point — do not "fix" this to be atomic. A destination file whose content
-// already matches the source is left entirely untouched (inode and mtime
-// preserved).
-//
-// MirrorOptions.Preserve names destination entries that must survive even
-// though the source omits them; a directory holding a preserved descendant is
-// descended into rather than removed wholesale. The copy phase always tolerates
-// unreadable source entries, because failing half-way through leaves the live
-// directory in a mixed state that is worse than one stale file (#3509, #3085).
-// Destination files the process cannot write are tolerated in the same spirit
-// (#3625): the stale file keeps its old content and the mirror carries on.
-func MirrorDir(ctx context.Context, sourceRootPath, destinationRootPath string, options acfstypes.MirrorOptions) error {
-	if err := validateDistinctRootsInternal(sourceRootPath, destinationRootPath); err != nil {
-		return err
-	}
-
-	preserve := make(map[string]struct{}, len(options.Preserve))
-	for _, entry := range options.Preserve {
-		preserve[filepath.Clean(entry)] = struct{}{}
-	}
-	if err := pruneDirectoryContentsInternal(ctx, sourceRootPath, destinationRootPath, preserve); err != nil {
-		return err
-	}
-
-	_, err := copyDirectoryContentsInternal(ctx, sourceRootPath, destinationRootPath, true, true, func(string) {})
-	return err
 }
 
 type pruneWalkerInternal struct {

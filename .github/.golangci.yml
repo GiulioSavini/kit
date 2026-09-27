@@ -77,6 +77,7 @@ linters:
     - spancheck
     - sqlclosecheck
     - staticcheck
+    - tidygo
     - testableexamples
     - testifylint
     - unconvert
@@ -94,6 +95,8 @@ linters:
         type: module
         description: Detects suspicious Go function implementations.
         original-url: https://go.ofkm.dev/shimbad
+      tidygo:
+        type: "module"
     forbidigo:
       forbid:
         - pattern: ^errors\.(Wrap|Wrapf|WithStack)$

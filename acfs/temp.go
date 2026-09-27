@@ -18,15 +18,6 @@ const (
 	temporaryDirectoryAttempts = 10
 )
 
-// temporaryNamePartsInternal splits an os.MkdirTemp-style pattern around its
-// last "*", which is where the random component is substituted.
-func temporaryNamePartsInternal(pattern string) (prefix, suffix string) {
-	if index := strings.LastIndexByte(pattern, '*'); index >= 0 {
-		return pattern[:index], pattern[index+1:]
-	}
-	return pattern, ""
-}
-
 // MkdirTemp creates a uniquely named directory inside a root-confined
 // directory and returns its logical path. The pattern follows os.MkdirTemp:
 // the last "*" is replaced by a random string, or one is appended when the
@@ -42,7 +33,7 @@ func MkdirTemp(ctx context.Context, rootPath, logicalDir, pattern string) (strin
 	if pattern == "" || strings.ContainsRune(pattern, '/') || strings.ContainsRune(pattern, '\x00') {
 		return "", fmt.Errorf("%w: temporary pattern must be a single path component", ErrInvalidPath)
 	}
-	prefix, suffix := temporaryNamePartsInternal(pattern)
+	prefix, suffix, _ := strings.CutLast(pattern, "*")
 	if err := rejectReservedPathInternal(prefix); err != nil {
 		return "", err
 	}

@@ -17,33 +17,6 @@ import (
 
 const directoryReadBatchSize = 256
 
-func listNamesInternal(ctx context.Context, root *os.Root, resolvedPath, logicalPath string) ([]string, error) {
-	directory, err := root.Open(resolvedPath)
-	if err != nil {
-		return nil, fmt.Errorf("open directory %q: %w", logicalPath, err)
-	}
-	defer func() { _ = directory.Close() }()
-
-	names := make([]string, 0, directoryReadBatchSize)
-	for {
-		if err := ctx.Err(); err != nil {
-			return nil, err
-		}
-		entries, readErr := directory.ReadDir(directoryReadBatchSize)
-		for _, entry := range entries {
-			names = append(names, entry.Name())
-		}
-		if errors.Is(readErr, io.EOF) {
-			break
-		}
-		if readErr != nil {
-			return nil, fmt.Errorf("read directory %q: %w", logicalPath, readErr)
-		}
-	}
-	slices.Sort(names)
-	return names, nil
-}
-
 // ListEach visits the direct children of a root-confined directory in
 // deterministic name order without retaining all metadata in memory.
 func ListEach(ctx context.Context, rootPath, logicalPath string, visit func(acfstypes.Entry) error) error {
@@ -181,73 +154,6 @@ func Walk(ctx context.Context, rootPath, logicalPath string, visit func(acfstype
 	return err
 }
 
-type walkDirectoryInternal struct {
-	path  string
-	depth int
-}
-
-type boundedWalkerInternal struct {
-	ctx      context.Context
-	rootPath string
-	options  acfstypes.WalkOptions
-	visit    func(acfstypes.Entry) error
-	result   acfstypes.WalkResult
-}
-
-func directoryHasEntriesInternal(ctx context.Context, rootPath, logicalPath string) (bool, error) {
-	found := false
-	err := ListEach(ctx, rootPath, logicalPath, func(acfstypes.Entry) error {
-		found = true
-		return fs.SkipAll
-	})
-	if err != nil && !errors.Is(err, fs.SkipAll) {
-		return false, err
-	}
-	return found, nil
-}
-
-func (w *boundedWalkerInternal) visitEntryInternal(current walkDirectoryInternal, childDirectories *[]walkDirectoryInternal, entry acfstypes.Entry) error {
-	if err := w.ctx.Err(); err != nil {
-		return err
-	}
-	if w.options.MaxEntries > 0 && w.result.Count >= w.options.MaxEntries {
-		w.result.Truncated = true
-		return fs.SkipAll
-	}
-
-	visitErr := w.visit(entry)
-	if visitErr != nil && !errors.Is(visitErr, fs.SkipDir) && !errors.Is(visitErr, fs.SkipAll) {
-		return visitErr
-	}
-	w.result.Count++
-	if errors.Is(visitErr, fs.SkipAll) {
-		return fs.SkipAll
-	}
-	if !entry.IsDirectory || entry.IsSymlink || errors.Is(visitErr, fs.SkipDir) {
-		return nil
-	}
-
-	entryDepth := current.depth + 1
-	if w.options.MaxDepth > 0 && entryDepth >= w.options.MaxDepth {
-		hasEntries, err := directoryHasEntriesInternal(w.ctx, w.rootPath, entry.Path)
-		if err != nil {
-			return err
-		}
-		w.result.Truncated = w.result.Truncated || hasEntries
-		return nil
-	}
-	*childDirectories = append(*childDirectories, walkDirectoryInternal{path: entry.Path, depth: entryDepth})
-	return nil
-}
-
-func (w *boundedWalkerInternal) walkDirectoryInternal(current walkDirectoryInternal) ([]walkDirectoryInternal, error) {
-	childDirectories := make([]walkDirectoryInternal, 0)
-	err := ListEach(w.ctx, w.rootPath, current.path, func(entry acfstypes.Entry) error {
-		return w.visitEntryInternal(current, &childDirectories, entry)
-	})
-	return childDirectories, err
-}
-
 // WalkBounded visits descendants using deterministic sequential traversal and
 // reports whether depth or entry limits omitted any entries.
 func WalkBounded(ctx context.Context, rootPath, logicalPath string, options acfstypes.WalkOptions, visit func(acfstypes.Entry) error) (acfstypes.WalkResult, error) {
@@ -269,7 +175,10 @@ func WalkBounded(ctx context.Context, rootPath, logicalPath string, options acfs
 		currentDirectory := directories[last]
 		directories = directories[:last]
 
-		childDirectories, err := walker.walkDirectoryInternal(currentDirectory)
+		childDirectories := make([]walkDirectoryInternal, 0)
+		err := ListEach(ctx, rootPath, currentDirectory.path, func(entry acfstypes.Entry) error {
+			return walker.visitEntryInternal(currentDirectory, &childDirectories, entry)
+		})
 		if errors.Is(err, fs.SkipAll) {
 			return walker.result, nil
 		}
@@ -435,5 +344,81 @@ func RemoveAll(ctx context.Context, rootPath, logicalPath string) error {
 	if err := root.RemoveAll(targetPath); err != nil {
 		return fmt.Errorf("remove %q: %w", logicalPath, err)
 	}
+	return nil
+}
+
+func listNamesInternal(ctx context.Context, root *os.Root, resolvedPath, logicalPath string) ([]string, error) {
+	directory, err := root.Open(resolvedPath)
+	if err != nil {
+		return nil, fmt.Errorf("open directory %q: %w", logicalPath, err)
+	}
+	defer func() { _ = directory.Close() }()
+
+	names := make([]string, 0, directoryReadBatchSize)
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+		entries, readErr := directory.ReadDir(directoryReadBatchSize)
+		for _, entry := range entries {
+			names = append(names, entry.Name())
+		}
+		if errors.Is(readErr, io.EOF) {
+			break
+		}
+		if readErr != nil {
+			return nil, fmt.Errorf("read directory %q: %w", logicalPath, readErr)
+		}
+	}
+	slices.Sort(names)
+	return names, nil
+}
+
+type walkDirectoryInternal struct {
+	path  string
+	depth int
+}
+
+type boundedWalkerInternal struct {
+	ctx      context.Context
+	rootPath string
+	options  acfstypes.WalkOptions
+	visit    func(acfstypes.Entry) error
+	result   acfstypes.WalkResult
+}
+
+func (w *boundedWalkerInternal) visitEntryInternal(current walkDirectoryInternal, childDirectories *[]walkDirectoryInternal, entry acfstypes.Entry) error {
+	if err := w.ctx.Err(); err != nil {
+		return err
+	}
+	if w.options.MaxEntries > 0 && w.result.Count >= w.options.MaxEntries {
+		w.result.Truncated = true
+		return fs.SkipAll
+	}
+
+	visitErr := w.visit(entry)
+	if visitErr != nil && !errors.Is(visitErr, fs.SkipDir) && !errors.Is(visitErr, fs.SkipAll) {
+		return visitErr
+	}
+	w.result.Count++
+	if errors.Is(visitErr, fs.SkipAll) {
+		return fs.SkipAll
+	}
+	if !entry.IsDirectory || entry.IsSymlink || errors.Is(visitErr, fs.SkipDir) {
+		return nil
+	}
+
+	entryDepth := current.depth + 1
+	if w.options.MaxDepth > 0 && entryDepth >= w.options.MaxDepth {
+		err := ListEach(w.ctx, w.rootPath, entry.Path, func(acfstypes.Entry) error {
+			w.result.Truncated = true
+			return fs.SkipAll
+		})
+		if err != nil && !errors.Is(err, fs.SkipAll) {
+			return err
+		}
+		return nil
+	}
+	*childDirectories = append(*childDirectories, walkDirectoryInternal{path: entry.Path, depth: entryDepth})
 	return nil
 }

@@ -12,32 +12,6 @@ import (
 	kitfs "go.getarcane.app/kit/pkg/fs"
 )
 
-// isDirectoryNotEmptyInternal reports whether a removal or rename failed
-// because the destination is a non-empty directory. Linux reports ENOTEMPTY,
-// while some filesystems and platforms report EEXIST for the same condition.
-func isDirectoryNotEmptyInternal(err error) bool {
-	return errors.Is(err, syscall.ENOTEMPTY) || errors.Is(err, syscall.EEXIST)
-}
-
-func resolveRenameEndpointInternal(root *os.Root, logicalPath string) (string, error) {
-	relativePath, err := kitfs.NormalizeLogicalPath(logicalPath)
-	if err != nil {
-		return "", err
-	}
-	if err := rejectReservedPathInternal(relativePath); err != nil {
-		return "", err
-	}
-	if relativePath == "." {
-		return "", ErrRootRemoval
-	}
-
-	resolvedParent, base, err := resolveParentInternal(root, relativePath)
-	if err != nil {
-		return "", err
-	}
-	return path.Join(resolvedParent, base), nil
-}
-
 // Rename moves sourceLogical onto targetLogical within a single workspace
 // root, with plain os.Rename semantics: an existing file or empty directory at
 // the target is replaced, and a non-empty directory target reports ErrNotEmpty.
@@ -84,4 +58,30 @@ func Rename(ctx context.Context, rootPath, sourceLogical, targetLogical string) 
 		return fmt.Errorf("rename %q to %q: %w", sourceLogical, targetLogical, err)
 	}
 	return nil
+}
+
+// isDirectoryNotEmptyInternal reports whether a removal or rename failed
+// because the destination is a non-empty directory. Linux reports ENOTEMPTY,
+// while some filesystems and platforms report EEXIST for the same condition.
+func isDirectoryNotEmptyInternal(err error) bool {
+	return errors.Is(err, syscall.ENOTEMPTY) || errors.Is(err, syscall.EEXIST)
+}
+
+func resolveRenameEndpointInternal(root *os.Root, logicalPath string) (string, error) {
+	relativePath, err := kitfs.NormalizeLogicalPath(logicalPath)
+	if err != nil {
+		return "", err
+	}
+	if err := rejectReservedPathInternal(relativePath); err != nil {
+		return "", err
+	}
+	if relativePath == "." {
+		return "", ErrRootRemoval
+	}
+
+	resolvedParent, base, err := resolveParentInternal(root, relativePath)
+	if err != nil {
+		return "", err
+	}
+	return path.Join(resolvedParent, base), nil
 }

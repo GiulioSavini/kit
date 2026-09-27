@@ -58,6 +58,40 @@ const maxCapacity = Capacity(^uint64(0))
 // errors.Is.
 var ErrInvalidCapacity = errors.New("bytes: invalid capacity")
 
+var units = [...]struct {
+	Suffix byte
+	Size   uint64
+}{
+	{'E', uint64(Exabyte)},
+	{'P', uint64(Petabyte)},
+	{'T', uint64(Terabyte)},
+	{'G', uint64(Gigabyte)},
+	{'M', uint64(Megabyte)},
+	{'K', uint64(Kilobyte)},
+}
+
+// unitMapDecimal holds the base 10 (SI) suffixes, e.g. "G" for Gigabyte.
+var unitMapDecimal = map[byte]Capacity{
+	'E': Exabyte,
+	'P': Petabyte,
+	'T': Terabyte,
+	'G': Gigabyte,
+	'M': Megabyte,
+	'K': Kilobyte,
+}
+
+// unitMapBinary holds the base 2 (IEC) suffixes, e.g. "Gi" for Gibibyte. It
+// is keyed on the leading byte only; ParseCapacity has already checked the
+// trailing 'i'.
+var unitMapBinary = map[byte]Capacity{
+	'E': Exbibyte,
+	'P': Pebibyte,
+	'T': Tebibyte,
+	'G': Gibibyte,
+	'M': Mebibyte,
+	'K': Kibibyte,
+}
+
 // Bytes returns the capacity as an integer bytes count.
 func (c Capacity) Bytes() uint64 { return uint64(c) }
 
@@ -96,40 +130,6 @@ func (c Capacity) Petabytes() uint64 { return c.Terabytes() / 1000 }
 
 // Exabytes returns the capacity as an integer exabytes count.
 func (c Capacity) Exabytes() uint64 { return c.Petabytes() / 1000 }
-
-var units = [...]struct {
-	Suffix byte
-	Size   uint64
-}{
-	{'E', uint64(Exabyte)},
-	{'P', uint64(Petabyte)},
-	{'T', uint64(Terabyte)},
-	{'G', uint64(Gigabyte)},
-	{'M', uint64(Megabyte)},
-	{'K', uint64(Kilobyte)},
-}
-
-// unitMapDecimal holds the base 10 (SI) suffixes, e.g. "G" for Gigabyte.
-var unitMapDecimal = map[byte]Capacity{
-	'E': Exabyte,
-	'P': Petabyte,
-	'T': Terabyte,
-	'G': Gigabyte,
-	'M': Megabyte,
-	'K': Kilobyte,
-}
-
-// unitMapBinary holds the base 2 (IEC) suffixes, e.g. "Gi" for Gibibyte. It
-// is keyed on the leading byte only; ParseCapacity has already checked the
-// trailing 'i'.
-var unitMapBinary = map[byte]Capacity{
-	'E': Exbibyte,
-	'P': Pebibyte,
-	'T': Tebibyte,
-	'G': Gibibyte,
-	'M': Mebibyte,
-	'K': Kibibyte,
-}
 
 // String returns a string representing the capacity in the form of "10.4G"
 // representing their base 10 measurement, gigabytes in this example.
@@ -183,50 +183,6 @@ func (c *Capacity) Set(s string) error {
 	}
 	*c = v
 	return nil
-}
-
-// fmtFrac formats the fraction of v/unit (e.g., ".1") into the
-// tail of buf, omitting trailing zeros. It omits the decimal
-// point too when the fraction is 0. It returns the index where the
-// output bytes begin and the value v/unit.
-func fmtFrac(buf []byte, v, unit uint64) (nw int, nv uint64) {
-	w := len(buf)
-	// Every unit in the table is a power of 1000, so unit/100 is exact and
-	// (v%unit)/(unit/100) equals (v%unit)*100/unit without the intermediate
-	// multiply, which would overflow uint64 across most of the exabyte range.
-	frac := (v % unit) / (unit / 100)
-	v /= unit
-
-	// Just round down
-	if frac < 5 {
-		return w, v
-	}
-	// Rounding up to the next whole unit
-	if frac >= 95 {
-		return w, v + 1
-	}
-
-	w -= 2
-	buf[w] = '.'
-	buf[w+1] = byte((frac+5)/10) + '0'
-	return w, v
-}
-
-// fmtInt formats v into the tail of buf.
-// It returns the index where the output begins.
-func fmtInt(buf []byte, v uint64) int {
-	w := len(buf)
-	if v == 0 {
-		w--
-		buf[w] = '0'
-	} else {
-		for v > 0 {
-			w--
-			buf[w] = byte(v%10) + '0'
-			v /= 10
-		}
-	}
-	return w
 }
 
 // ParseCapacity parses a capacity string.
@@ -293,6 +249,50 @@ func ParseCapacity(s string) (Capacity, error) {
 		return 0, parseError(strconv.Quote(orig) + ": out of range")
 	}
 	return Capacity(c) * unit, nil
+}
+
+// fmtFrac formats the fraction of v/unit (e.g., ".1") into the
+// tail of buf, omitting trailing zeros. It omits the decimal
+// point too when the fraction is 0. It returns the index where the
+// output bytes begin and the value v/unit.
+func fmtFrac(buf []byte, v, unit uint64) (nw int, nv uint64) {
+	w := len(buf)
+	// Every unit in the table is a power of 1000, so unit/100 is exact and
+	// (v%unit)/(unit/100) equals (v%unit)*100/unit without the intermediate
+	// multiply, which would overflow uint64 across most of the exabyte range.
+	frac := (v % unit) / (unit / 100)
+	v /= unit
+
+	// Just round down
+	if frac < 5 {
+		return w, v
+	}
+	// Rounding up to the next whole unit
+	if frac >= 95 {
+		return w, v + 1
+	}
+
+	w -= 2
+	buf[w] = '.'
+	buf[w+1] = byte((frac+5)/10) + '0'
+	return w, v
+}
+
+// fmtInt formats v into the tail of buf.
+// It returns the index where the output begins.
+func fmtInt(buf []byte, v uint64) int {
+	w := len(buf)
+	if v == 0 {
+		w--
+		buf[w] = '0'
+	} else {
+		for v > 0 {
+			w--
+			buf[w] = byte(v%10) + '0'
+			v /= 10
+		}
+	}
+	return w
 }
 
 // parseError builds an error wrapping ErrInvalidCapacity with detail.

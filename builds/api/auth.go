@@ -8,6 +8,7 @@ import (
 	ref "github.com/distribution/reference"
 	dockerauthconfig "github.com/moby/moby/api/pkg/authconfig"
 	dockerregistry "github.com/moby/moby/api/types/registry"
+	kit "go.getarcane.app/kit/pkg"
 	"go.getarcane.app/kit/pkg/registry"
 )
 
@@ -58,8 +59,5 @@ func registryAddressInternal(imageRef string) (string, error) {
 		return "", err
 	}
 	addr := ref.Domain(named)
-	if addr == "docker.io" {
-		return "index.docker.io", nil
-	}
-	return addr, nil
+	return kit.Ternary(addr == "docker.io", "index.docker.io", addr), nil
 }

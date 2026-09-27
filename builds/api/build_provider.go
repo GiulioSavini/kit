@@ -14,6 +14,7 @@ import (
 	cliv1 "github.com/depot/depot-go/proto/depot/cli/v1"
 	"github.com/moby/buildkit/client"
 	"go.getarcane.app/builds/types"
+	kit "go.getarcane.app/kit/pkg"
 )
 
 type buildSession struct {
@@ -96,8 +97,5 @@ func selectDepotArchInternal(requested []string) string {
 		}
 	}
 
-	if runtime.GOARCH == "arm64" {
-		return "arm64"
-	}
-	return "amd64"
+	return kit.Ternary(runtime.GOARCH == "arm64", "arm64", "amd64")
 }

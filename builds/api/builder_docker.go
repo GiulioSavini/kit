@@ -25,6 +25,7 @@ import (
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	dockerutils "go.getarcane.app/builds/pkg/docker"
 	"go.getarcane.app/builds/types"
+	kit "go.getarcane.app/kit/pkg"
 )
 
 type dockerBuildInput struct {
@@ -94,9 +95,7 @@ func prepareBuildFilesystemInputInternal(req types.BuildRequest) (buildFilesyste
 	}
 
 	dockerfilePath := strings.TrimSpace(req.Dockerfile)
-	if dockerfilePath == "" {
-		dockerfilePath = "Dockerfile"
-	}
+	dockerfilePath = kit.Ternary(dockerfilePath == "", "Dockerfile", dockerfilePath)
 
 	fullDockerfilePath := dockerfilePath
 	if !filepath.IsAbs(dockerfilePath) {
@@ -112,11 +111,11 @@ func prepareBuildFilesystemInputInternal(req types.BuildRequest) (buildFilesyste
 		}
 		dockerfileOutsideCtx = excluded
 	}
-	if dockerfileOutsideCtx {
-		relDockerfile = filepath.Base(fullDockerfilePath)
-	} else {
-		relDockerfile = filepath.ToSlash(relDockerfile)
-	}
+	relDockerfile = kit.Ternary(
+		dockerfileOutsideCtx,
+		filepath.Base(fullDockerfilePath),
+		filepath.ToSlash(relDockerfile),
+	)
 
 	return buildFilesystemInput{
 		contextDir:           contextDir,

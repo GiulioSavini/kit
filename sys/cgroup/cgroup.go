@@ -35,6 +35,14 @@ type Limits struct {
 	CPUCount    int
 }
 
+// Container ID detection patterns for cgroup v1 and v2
+var (
+	// cgroup v1: "12:memory:/docker/abc123..." or "12:memory:/kubepods/.../docker/abc123..."
+	cgroupV1ContainerPattern = regexp.MustCompile(`/docker/([a-f0-9]{64})`)
+	// cgroup v2: "0::/system.slice/docker-abc123.scope"
+	cgroupV2ContainerPattern = regexp.MustCompile(`docker-([a-f0-9]{64})\.scope`)
+)
+
 // DetectLimits detects the cgroup (v1 or v2) CPU and memory limits applied to
 // the current process. It returns an error when the process is not running
 // under a cgroup with explicit limits.
@@ -56,6 +64,76 @@ func DetectLimits() (*Limits, error) {
 	}
 
 	return detectCgroupV1Limits(limits)
+}
+
+// IsDockerContainer reports whether the current process is running inside a
+// Docker container (as opposed to an LXC container, a VM, or bare metal).
+//
+// The distinction matters for host resource stats: in Docker the cgroup
+// limits (--cpus / --memory) are artificial constraints set by the operator
+// and should NOT be used as the host resource totals shown in a dashboard.
+// In LXC, by contrast, the cgroup limits represent the real hardware budget
+// assigned to the container — gopsutil reads the host's /proc values which are
+// higher, so the cgroup limits must be applied to show correct figures.
+//
+// Detection: Docker always creates /.dockerenv inside every container it
+// starts.  LXC does not.  We fall back to a /proc/self/cgroup pattern check
+// as a secondary signal.
+func IsDockerContainer() bool {
+	if _, err := os.Stat("/.dockerenv"); err == nil {
+		return true
+	}
+	data, err := os.ReadFile("/proc/self/cgroup")
+	if err != nil {
+		return false
+	}
+	return cgroupV1ContainerPattern.Match(data) || cgroupV2ContainerPattern.Match(data)
+}
+
+// CurrentContainerID detects the current container ID using multiple detection methods.
+// It tries cgroup, mountinfo, and hostname in that order.
+func CurrentContainerID() (string, error) {
+	// Try cgroup first (works on cgroup v1 and cgroupns=host mode)
+	if id, err := getContainerIDFromCgroup(); err == nil {
+		slog.Debug("CurrentContainerID: found via cgroup", "containerId", id)
+		return id, nil
+	}
+
+	// Try mountinfo (works when cgroup namespace is private)
+	if id, err := getContainerIDFromMountinfo(); err == nil {
+		slog.Debug("CurrentContainerID: found via mountinfo", "containerId", id)
+		return id, nil
+	}
+
+	// Try hostname (Docker often sets hostname to container ID)
+	if id, err := getContainerIDFromHostname(); err == nil {
+		slog.Debug("CurrentContainerID: found via hostname", "containerId", id)
+		return id, nil
+	}
+
+	return "", errors.New("no container ID found via cgroup, mountinfo, or hostname")
+}
+
+// ZFSARCReclaimable returns the number of bytes of ZFS ARC (Adaptive
+// Replacement Cache) that the kernel counts as used memory but that can be
+// reclaimed under memory pressure.
+//
+// The kernel accounts ZFS ARC as used and excludes it from /proc/meminfo's
+// MemAvailable, so gopsutil's Used (= Total - MemAvailable) counts the whole
+// ARC as used. Tools like btop/htop instead treat ARC as reclaimable cache. We
+// subtract the reclaimable portion so dashboards do not over-report usage
+// on ZFS hosts.
+//
+// The arcstats file only exists when the ZFS kernel module is loaded, so the
+// open fails cheaply on non-ZFS systems (including macOS dev machines) and this
+// returns 0 there.
+func ZFSARCReclaimable() uint64 {
+	f, err := os.Open("/proc/spl/kstat/zfs/arcstats")
+	if err != nil {
+		return 0
+	}
+	defer func() { _ = f.Close() }()
+	return parseARCStats(f)
 }
 
 func isInCgroup() bool {
@@ -315,62 +393,6 @@ func readCgroupV1CPUControllerInt64(cgroupPath, filename string) (int64, error) 
 	return 0, lastErr
 }
 
-// Container ID detection patterns for cgroup v1 and v2
-var (
-	// cgroup v1: "12:memory:/docker/abc123..." or "12:memory:/kubepods/.../docker/abc123..."
-	cgroupV1ContainerPattern = regexp.MustCompile(`/docker/([a-f0-9]{64})`)
-	// cgroup v2: "0::/system.slice/docker-abc123.scope"
-	cgroupV2ContainerPattern = regexp.MustCompile(`docker-([a-f0-9]{64})\.scope`)
-)
-
-// IsDockerContainer reports whether the current process is running inside a
-// Docker container (as opposed to an LXC container, a VM, or bare metal).
-//
-// The distinction matters for host resource stats: in Docker the cgroup
-// limits (--cpus / --memory) are artificial constraints set by the operator
-// and should NOT be used as the host resource totals shown in a dashboard.
-// In LXC, by contrast, the cgroup limits represent the real hardware budget
-// assigned to the container — gopsutil reads the host's /proc values which are
-// higher, so the cgroup limits must be applied to show correct figures.
-//
-// Detection: Docker always creates /.dockerenv inside every container it
-// starts.  LXC does not.  We fall back to a /proc/self/cgroup pattern check
-// as a secondary signal.
-func IsDockerContainer() bool {
-	if _, err := os.Stat("/.dockerenv"); err == nil {
-		return true
-	}
-	data, err := os.ReadFile("/proc/self/cgroup")
-	if err != nil {
-		return false
-	}
-	return cgroupV1ContainerPattern.Match(data) || cgroupV2ContainerPattern.Match(data)
-}
-
-// CurrentContainerID detects the current container ID using multiple detection methods.
-// It tries cgroup, mountinfo, and hostname in that order.
-func CurrentContainerID() (string, error) {
-	// Try cgroup first (works on cgroup v1 and cgroupns=host mode)
-	if id, err := getContainerIDFromCgroup(); err == nil {
-		slog.Debug("CurrentContainerID: found via cgroup", "containerId", id)
-		return id, nil
-	}
-
-	// Try mountinfo (works when cgroup namespace is private)
-	if id, err := getContainerIDFromMountinfo(); err == nil {
-		slog.Debug("CurrentContainerID: found via mountinfo", "containerId", id)
-		return id, nil
-	}
-
-	// Try hostname (Docker often sets hostname to container ID)
-	if id, err := getContainerIDFromHostname(); err == nil {
-		slog.Debug("CurrentContainerID: found via hostname", "containerId", id)
-		return id, nil
-	}
-
-	return "", errors.New("no container ID found via cgroup, mountinfo, or hostname")
-}
-
 // getContainerIDFromCgroup tries to extract container ID from /proc/self/cgroup
 func getContainerIDFromCgroup() (string, error) {
 	data, err := os.ReadFile("/proc/self/cgroup")
@@ -444,28 +466,6 @@ func getContainerIDFromHostname() (string, error) {
 	}
 
 	return "", errors.New("hostname doesn't match expected container ID length")
-}
-
-// ZFSARCReclaimable returns the number of bytes of ZFS ARC (Adaptive
-// Replacement Cache) that the kernel counts as used memory but that can be
-// reclaimed under memory pressure.
-//
-// The kernel accounts ZFS ARC as used and excludes it from /proc/meminfo's
-// MemAvailable, so gopsutil's Used (= Total - MemAvailable) counts the whole
-// ARC as used. Tools like btop/htop instead treat ARC as reclaimable cache. We
-// subtract the reclaimable portion so dashboards do not over-report usage
-// on ZFS hosts.
-//
-// The arcstats file only exists when the ZFS kernel module is loaded, so the
-// open fails cheaply on non-ZFS systems (including macOS dev machines) and this
-// returns 0 there.
-func ZFSARCReclaimable() uint64 {
-	f, err := os.Open("/proc/spl/kstat/zfs/arcstats")
-	if err != nil {
-		return 0
-	}
-	defer func() { _ = f.Close() }()
-	return parseARCStats(f)
 }
 
 // parseARCStats parses the kstat-format arcstats content and returns the

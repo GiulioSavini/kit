@@ -3,27 +3,17 @@
 package utils
 
 import (
-	"sort"
+	"slices"
 	"strings"
+
+	kit "go.getarcane.app/kit/pkg"
 )
 
 // NormalizeSet trims every entry, drops blanks and duplicates, and returns
 // the remaining entries sorted. The input slice is not modified.
 func NormalizeSet(values []string) []string {
-	seen := make(map[string]struct{}, len(values))
-	out := make([]string, 0, len(values))
-	for _, value := range values {
-		trimmed := strings.TrimSpace(value)
-		if trimmed == "" {
-			continue
-		}
-		if _, ok := seen[trimmed]; ok {
-			continue
-		}
-		seen[trimmed] = struct{}{}
-		out = append(out, trimmed)
-	}
-	sort.Strings(out)
+	out := kit.Unique(kit.TrimNonEmpty(values))
+	slices.Sort(out)
 	return out
 }
 

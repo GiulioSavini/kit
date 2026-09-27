@@ -18,10 +18,12 @@ func Normalize(rawURL string) string {
 	if slash := strings.Index(registryHost, "/"); slash != -1 {
 		registryHost = registryHost[:slash]
 	}
-	if registryHost == "docker.io" || registryHost == "registry-1.docker.io" || registryHost == "index.docker.io" {
+	switch registryHost {
+	case DefaultDomain, "registry-1.docker.io", "index.docker.io":
 		return DefaultDomain
+	default:
+		return registryHost
 	}
-	return registryHost
 }
 
 // LookupKeys returns the sorted set of host keys a credential store should be

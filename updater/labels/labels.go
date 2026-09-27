@@ -4,7 +4,11 @@
 // it wants to be stopped.
 package labels
 
-import "strings"
+import (
+	"strings"
+
+	kit "go.getarcane.app/kit/pkg"
+)
 
 const (
 	// LabelArcane identifies an Arcane server container.
@@ -64,15 +68,8 @@ func IsArcaneAgentContainer(labels map[string]string) bool {
 // IsUpdateDisabled reports whether labels opt out of updates.
 func IsUpdateDisabled(labels map[string]string) bool {
 	value, ok := lookupLabel(labels, LabelUpdater)
-	if !ok {
-		return false
-	}
-	switch strings.TrimSpace(strings.ToLower(value)) {
-	case "false", "0", "no", "off":
-		return true
-	default:
-		return false
-	}
+	enabled, recognized := kit.ParseBool(value)
+	return ok && recognized && !enabled
 }
 
 // IsSwarmTask reports whether labels identify a Docker Swarm task.
@@ -91,7 +88,8 @@ func StopSignal(labels map[string]string) string {
 
 func hasTruthyLabel(labels map[string]string, target string) bool {
 	value, ok := lookupLabel(labels, target)
-	return ok && isTruthyLabelValue(value)
+	truthy, _ := kit.ParseBool(value)
+	return ok && truthy
 }
 
 func hasNonEmptyLabel(labels map[string]string, target string) bool {
@@ -108,20 +106,8 @@ func lookupLabel(labels map[string]string, target string) (string, bool) {
 	return "", false
 }
 
-func isTruthyLabelValue(value string) bool {
-	switch strings.TrimSpace(strings.ToLower(value)) {
-	case "true", "1", "yes", "on":
-		return true
-	default:
-		return false
-	}
-}
-
 func containerIDsMatch(a, b string) bool {
 	a = strings.TrimSpace(a)
 	b = strings.TrimSpace(b)
-	if a == "" || b == "" {
-		return false
-	}
-	return a == b || strings.HasPrefix(a, b) || strings.HasPrefix(b, a)
+	return a != "" && b != "" && (strings.HasPrefix(a, b) || strings.HasPrefix(b, a))
 }

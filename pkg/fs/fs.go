@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	kit "go.getarcane.app/kit/pkg"
 )
 
 // ErrInvalidPath indicates that a logical workspace path is malformed.
@@ -33,10 +35,7 @@ func NormalizeLogicalPath(logicalPath string) (string, error) {
 
 // LogicalPath converts an os.Root-relative path to an absolute logical path.
 func LogicalPath(relativePath string) string {
-	if relativePath == "." || relativePath == "" {
-		return "/"
-	}
-	return "/" + relativePath
+	return kit.Ternary(relativePath == "." || relativePath == "", "/", "/"+relativePath)
 }
 
 // FormatMode formats a Go file mode like POSIX stat output.
@@ -82,25 +81,13 @@ func FormatMode(mode os.FileMode) string {
 	}
 
 	if mode&os.ModeSetuid != 0 {
-		if formatted[3] == 'x' {
-			formatted[3] = 's'
-		} else {
-			formatted[3] = 'S'
-		}
+		formatted[3] = kit.Ternary[byte](formatted[3] == 'x', 's', 'S')
 	}
 	if mode&os.ModeSetgid != 0 {
-		if formatted[6] == 'x' {
-			formatted[6] = 's'
-		} else {
-			formatted[6] = 'S'
-		}
+		formatted[6] = kit.Ternary[byte](formatted[6] == 'x', 's', 'S')
 	}
 	if mode&os.ModeSticky != 0 {
-		if formatted[9] == 'x' {
-			formatted[9] = 't'
-		} else {
-			formatted[9] = 'T'
-		}
+		formatted[9] = kit.Ternary[byte](formatted[9] == 'x', 't', 'T')
 	}
 
 	return string(formatted[:])

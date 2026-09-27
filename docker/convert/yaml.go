@@ -10,6 +10,47 @@ import (
 	"go.yaml.in/yaml/v4"
 )
 
+var serviceKeyOrder = []string{
+	"image",
+	"container_name",
+	"hostname",
+	"ports",
+	"volumes",
+	"environment",
+	"env_file",
+	"networks",
+	"network_mode",
+	"restart",
+	"working_dir",
+	"user",
+	"entrypoint",
+	"command",
+	"stdin_open",
+	"tty",
+	"privileged",
+	"init",
+	"read_only",
+	"oom_kill_disable",
+	"labels",
+	"healthcheck",
+	"deploy",
+	"ulimits",
+	"logging",
+	"extra_hosts",
+	"dns",
+	"cap_add",
+	"cap_drop",
+	"devices",
+	"group_add",
+	"security_opt",
+	"gpus",
+	"platform",
+	"pull_policy",
+	"stop_signal",
+	"stop_grace_period",
+	"expose",
+}
+
 func Marshal(doc *types.Document, opts types.MarshalOptions) ([]byte, error) {
 	if doc == nil {
 		return nil, types.NewConversionError("document cannot be nil")
@@ -57,47 +98,6 @@ func Marshal(doc *types.Document, opts types.MarshalOptions) ([]byte, error) {
 	}
 
 	return b.Bytes(), nil
-}
-
-var serviceKeyOrder = []string{
-	"image",
-	"container_name",
-	"hostname",
-	"ports",
-	"volumes",
-	"environment",
-	"env_file",
-	"networks",
-	"network_mode",
-	"restart",
-	"working_dir",
-	"user",
-	"entrypoint",
-	"command",
-	"stdin_open",
-	"tty",
-	"privileged",
-	"init",
-	"read_only",
-	"oom_kill_disable",
-	"labels",
-	"healthcheck",
-	"deploy",
-	"ulimits",
-	"logging",
-	"extra_hosts",
-	"dns",
-	"cap_add",
-	"cap_drop",
-	"devices",
-	"group_add",
-	"security_opt",
-	"gpus",
-	"platform",
-	"pull_policy",
-	"stop_signal",
-	"stop_grace_period",
-	"expose",
 }
 
 func serviceNodeInternal(service types.Service) *yaml.Node {

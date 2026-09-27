@@ -21,6 +21,60 @@ const (
 	applyDirectoryMode = 0o755
 )
 
+// Apply performs an ordered batch of root-confined mutations. It stops at the
+// first failure; callers that require transactionality remain responsible for
+// restoring their own backup.
+func Apply(ctx context.Context, rootPath, stagingPath string, manifest acfstypes.ApplyManifest) (int, error) {
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
+	if manifest.Version != acfstypes.ProtocolVersion {
+		return 0, fmt.Errorf("unsupported apply manifest version %d", manifest.Version)
+	}
+	for index, change := range manifest.Changes {
+		if err := validateApplyChangeInternal(change); err != nil {
+			return 0, &acfstypes.ApplyError{Index: index, Operation: change.Operation, Path: change.Path, Err: err}
+		}
+	}
+	if err := validateDistinctRootsInternal(rootPath, stagingPath); err != nil {
+		return 0, err
+	}
+
+	root, err := os.OpenRoot(rootPath)
+	if err != nil {
+		return 0, fmt.Errorf("open workspace root: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+	stagingRoot, err := os.OpenRoot(stagingPath)
+	if err != nil {
+		return 0, fmt.Errorf("open staging root: %w", err)
+	}
+	defer func() { _ = stagingRoot.Close() }()
+
+	for index, change := range manifest.Changes {
+		if err := ctx.Err(); err != nil {
+			return index, err
+		}
+		var applyErr error
+		switch change.Operation {
+		case acfstypes.ApplyCreateFile:
+			applyErr = applyFileInternal(ctx, root, stagingRoot, change, true)
+		case acfstypes.ApplyUpdateFile:
+			applyErr = applyFileInternal(ctx, root, stagingRoot, change, false)
+		case acfstypes.ApplyCreateFolder:
+			applyErr = applyCreateFolderInternal(root, change.Path)
+		case acfstypes.ApplyRename, acfstypes.ApplyMove:
+			applyErr = applyRenameInternal(root, change.Path, change.TargetPath)
+		case acfstypes.ApplyDelete:
+			applyErr = applyDeleteInternal(root, change.Path, change.Recursive)
+		}
+		if applyErr != nil {
+			return index, &acfstypes.ApplyError{Index: index, Operation: change.Operation, Path: change.Path, Err: applyErr}
+		}
+	}
+	return len(manifest.Changes), nil
+}
+
 func normalizeMutationPathInternal(logicalPath string) (string, error) {
 	relativePath, err := kitfs.NormalizeLogicalPath(logicalPath)
 	if err != nil {
@@ -364,58 +418,4 @@ func validateDistinctRootsInternal(rootPath, stagingPath string) error {
 		return fmt.Errorf("%w: workspace and staging roots overlap", ErrInvalidPath)
 	}
 	return nil
-}
-
-// Apply performs an ordered batch of root-confined mutations. It stops at the
-// first failure; callers that require transactionality remain responsible for
-// restoring their own backup.
-func Apply(ctx context.Context, rootPath, stagingPath string, manifest acfstypes.ApplyManifest) (int, error) {
-	if err := ctx.Err(); err != nil {
-		return 0, err
-	}
-	if manifest.Version != acfstypes.ProtocolVersion {
-		return 0, fmt.Errorf("unsupported apply manifest version %d", manifest.Version)
-	}
-	for index, change := range manifest.Changes {
-		if err := validateApplyChangeInternal(change); err != nil {
-			return 0, &acfstypes.ApplyError{Index: index, Operation: change.Operation, Path: change.Path, Err: err}
-		}
-	}
-	if err := validateDistinctRootsInternal(rootPath, stagingPath); err != nil {
-		return 0, err
-	}
-
-	root, err := os.OpenRoot(rootPath)
-	if err != nil {
-		return 0, fmt.Errorf("open workspace root: %w", err)
-	}
-	defer func() { _ = root.Close() }()
-	stagingRoot, err := os.OpenRoot(stagingPath)
-	if err != nil {
-		return 0, fmt.Errorf("open staging root: %w", err)
-	}
-	defer func() { _ = stagingRoot.Close() }()
-
-	for index, change := range manifest.Changes {
-		if err := ctx.Err(); err != nil {
-			return index, err
-		}
-		var applyErr error
-		switch change.Operation {
-		case acfstypes.ApplyCreateFile:
-			applyErr = applyFileInternal(ctx, root, stagingRoot, change, true)
-		case acfstypes.ApplyUpdateFile:
-			applyErr = applyFileInternal(ctx, root, stagingRoot, change, false)
-		case acfstypes.ApplyCreateFolder:
-			applyErr = applyCreateFolderInternal(root, change.Path)
-		case acfstypes.ApplyRename, acfstypes.ApplyMove:
-			applyErr = applyRenameInternal(root, change.Path, change.TargetPath)
-		case acfstypes.ApplyDelete:
-			applyErr = applyDeleteInternal(root, change.Path, change.Recursive)
-		}
-		if applyErr != nil {
-			return index, &acfstypes.ApplyError{Index: index, Operation: change.Operation, Path: change.Path, Err: applyErr}
-		}
-	}
-	return len(manifest.Changes), nil
 }

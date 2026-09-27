@@ -265,7 +265,7 @@ func (s *Service) dispatchRestartCandidate(ctx context.Context, dockerClient *cl
 		res.Status = StatusFailed
 		res.Error = "compose tag update project could not be resolved"
 	case projectID != "" && serviceName != "" && !selfUpdate:
-		res = s.applyComposeServiceUpdate(ctx, dockerClient, res, plan, candidate.Name, projectID, projectName, serviceName, run)
+		res = s.applyComposeServiceUpdate(ctx, dockerClient, res, plan, projectID, run)
 	case selfUpdate:
 		// Defer the actual trigger until every other container has been
 		// recreated: the self-updater may stop this process, so it must be
@@ -393,12 +393,12 @@ func (s *Service) applyComposeServiceUpdate(
 	dockerClient *client.Client,
 	res ResourceResult,
 	plan *restartPlan,
-	containerName string,
 	projectID string,
-	projectName string,
-	serviceName string,
 	run *restartRun,
 ) ResourceResult {
+	labels := labelsFromInspect(*plan.inspect)
+	projectName := compose.ProjectLabel(labels)
+	serviceName := compose.ServiceLabel(labels)
 	if !run.processedProjects[projectID] {
 		group := run.composeGroups[projectID]
 		opCtx, cancel := s.opCtx(ctx)
@@ -453,7 +453,7 @@ func (s *Service) applyComposeServiceUpdate(
 	}
 	res.UpdateAvailable = !plan.implicit
 	res.UpdateApplied = true
-	_ = s.notify(ctx, plan.cnt.ID, containerName, plan.newRef, plan.match, refs.NormalizeImageUpdateRef(plan.newRef))
+	_ = s.notify(ctx, plan.cnt.ID, res.ResourceName, plan.newRef, plan.match, refs.NormalizeImageUpdateRef(plan.newRef))
 	return res
 }
 
