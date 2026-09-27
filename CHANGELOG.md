@@ -1,3 +1,22 @@
+## v0.3.0
+
+### New features
+
+* move over helpers from arcane codebase([b4272a8](https://github.com/getarcaneapp/kit/commit/b4272a870d13199eda8d13493ac86b1ad657b7f5) by @kmendell)
+
+### Bug fixes
+
+* apply pagination to tag based updates([7ce921b](https://github.com/getarcaneapp/kit/commit/7ce921bf97d933e51f763ea5ee35f5ad97c7dae2) by @kmendell)
+* default an undeclared strategy to digest([778f170](https://github.com/getarcaneapp/kit/commit/778f17098e1fcad9789065f14722226142eb3aa7) by @kmendell)
+
+### Dependencies
+
+* bump golang.org/x/text from 0.41.0 to 0.42.0 ([#6](https://github.com/getarcaneapp/kit/pull/6) by @dependabot[bot])
+
+
+
+**Full Changelog**: https://github.com/getarcaneapp/kit/compare/v0.2.0...v0.3.0
+
 ## v0.2.0
 
 ### New features
