@@ -1,3 +1,13 @@
+## v0.3.1
+
+### Bug fixes
+
+* move more helpers from arcane([1fa3b5f](https://github.com/getarcaneapp/kit/commit/1fa3b5f6cbaacd949dde62de536da5bcfa639266) by @kmendell)
+
+
+
+**Full Changelog**: https://github.com/getarcaneapp/kit/compare/v0.3.0...v0.3.1
+
 ## v0.3.0
 
 ### New features
