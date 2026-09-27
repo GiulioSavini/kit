@@ -4,6 +4,7 @@ use (
 	.
 	./acfs
 	./builds
+	./docker/compat
 	./docker/convert
 	./streams
 	./sys/bytes

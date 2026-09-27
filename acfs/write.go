@@ -15,7 +15,10 @@ import (
 	kitfs "go.getarcane.app/kit/pkg/fs"
 )
 
-const temporaryWritePrefix = ".acfs-write-"
+const (
+	temporaryWritePrefix = ".acfs-write-"
+	chmodModeMask        = os.ModePerm | os.ModeSetuid | os.ModeSetgid | os.ModeSticky
+)
 
 // WriteOptions configures the permissions and replacement behavior of a write.
 type WriteOptions struct {
@@ -24,8 +27,6 @@ type WriteOptions struct {
 	// The default uses an atomic replacement; in-place writes can be partial on failure.
 	InPlace bool
 }
-
-const chmodModeMask = os.ModePerm | os.ModeSetuid | os.ModeSetgid | os.ModeSticky
 
 // WriteFrom atomically writes exactly expectedSize bytes from source to a
 // root-confined file. The destination is unchanged when the transfer fails.

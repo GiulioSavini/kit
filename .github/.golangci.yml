@@ -90,6 +90,8 @@ linters:
     - whitespace
     - zerologlint
   settings:
+    grouper:
+      const-require-single-const: true
     custom:
       shimbad:
         type: module
