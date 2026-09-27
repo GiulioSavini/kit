@@ -13,6 +13,11 @@ Shared Go packages and nested modules for Arcane.
 > All modules are under development. The API is not stable and may change at anytime
 > before v1.0.0.
 
+Run `just format` to format all modules with `goimports-reviser` and `gofumpt`,
+and format the Justfile. Both Go formatting tools must be installed.
+Use `just format go` or `just format just` to format either separately,
+or `just format all --check` to check formatting without writing changes.
+
 Nested modules may import kit, never the other way around, and shared code is
 only added to the root when it has a concrete contract that more than one
 module needs.

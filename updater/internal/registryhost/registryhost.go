@@ -9,8 +9,10 @@ import (
 	ref "github.com/distribution/reference"
 )
 
-const defaultRegistryDomain = "docker.io"
-const defaultRegistryHost = "registry-1.docker.io"
+const (
+	defaultRegistryDomain = "docker.io"
+	defaultRegistryHost   = "registry-1.docker.io"
+)
 
 // AuthAddress returns the Docker daemon auth address for an image reference.
 func AuthAddress(imageRef string) (string, error) {

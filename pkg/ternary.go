@@ -1,6 +1,6 @@
 package kit
 
-func Ternary[T any](condition bool, trueVal T, falseVal T) T {
+func Ternary[T any](condition bool, trueVal, falseVal T) T {
 	if condition {
 		return trueVal
 	}

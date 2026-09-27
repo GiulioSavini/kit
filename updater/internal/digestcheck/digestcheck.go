@@ -128,7 +128,7 @@ func (c *Checker) CheckImageMatchesKnownDigest(ctx context.Context, imageRef, kn
 }
 
 // CompareWithPulled compares the current container image ID with a freshly pulled image.
-func (c *Checker) CompareWithPulled(ctx context.Context, containerImageID string, newImageRef string) (bool, error) {
+func (c *Checker) CompareWithPulled(ctx context.Context, containerImageID, newImageRef string) (bool, error) {
 	if c == nil || c.dockerClient == nil {
 		return false, errors.New("docker client unavailable")
 	}

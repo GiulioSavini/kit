@@ -215,7 +215,7 @@ func (e *Encryptor) Decrypt(ciphertext string) (string, error) {
 	return "", &DecryptError{Err: lastErr}
 }
 
-func decryptWithKeyInternal(key []byte, data []byte) (string, error) {
+func decryptWithKeyInternal(key, data []byte) (string, error) {
 	gcm, err := newGCMInternal(key)
 	if err != nil {
 		return "", err

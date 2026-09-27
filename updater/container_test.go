@@ -378,7 +378,6 @@ func TestUpdateStandaloneContainerTreatsAmbiguousStartErrorAsSuccessWhenInspectR
 		container.InspectResponse{ID: "old-id", Name: "/app", Image: "sha256:old-image", Config: &container.Config{Image: "app:1"}},
 		"app:2",
 	)
-
 	if err != nil {
 		t.Fatalf("updateStandaloneContainer() error = %v, want nil after inspect confirms running", err)
 	}

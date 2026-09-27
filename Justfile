@@ -6,12 +6,54 @@ _default:
     @just --list
 
 [group('quality')]
-format:
+_format-go:
     #!/usr/bin/env bash
     set -euo pipefail
     for module in {{ modules }}; do
-        gofmt -s -w "$module"
+        # A non-matching project name keeps all non-stdlib imports in one group.
+        (cd "$module" && goimports-reviser -project-name . ./...)
+        gofumpt -w -extra "$module"
     done
+
+[group('quality')]
+_format-just:
+    just --fmt --unstable
+
+[group('quality')]
+_format-check-go:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    unformatted=$(gofumpt -l -extra {{ modules }})
+    if [ -n "$unformatted" ]; then
+        echo "Unformatted Go files:"
+        echo "$unformatted"
+        exit 1
+    fi
+
+[group('quality')]
+_format-check-just:
+    just --fmt --check --unstable
+
+[group('quality')]
+_format-all:
+    #!/usr/bin/env bash
+    # Run every formatter even if one fails.
+    failed=0
+    for target in go just; do
+        just "_format-${target}" || failed=1
+    done
+    exit "${failed}"
+
+[group('quality')]
+_format-check-all:
+    @just _format-check-go
+    @just _format-check-just
+
+# Format targets. Valid: "go", "just", "all". Use --check to verify formatting.
+[group('quality')]
+format target="all" check="":
+    @if [ "{{ check }}" = "--check" ]; then just "_format-check-{{ target }}"; else just "_format-{{ target }}"; fi
 
 [group('quality')]
 vet:
@@ -41,7 +83,6 @@ fix:
     for module in {{ modules }}; do
         (cd "$module" && go fix ./...)
     done
-
 
 [group('test')]
 test:
@@ -82,7 +123,7 @@ snapshot:
 #   just release acfs 1.2.3
 #   just release kit --test --verbose
 #   just release all --patch --test
-#   just release all --minor
+# just release all --minor
 [group('release')]
 release module *args:
     #!/usr/bin/env bash

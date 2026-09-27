@@ -9,7 +9,8 @@ func TestRenderJSONMessageStream(t *testing.T) {
 	t.Run("renders docker CLI text for stream messages", func(t *testing.T) {
 		stream := strings.NewReader(
 			`{"status":"Pulling fs layer","id":"layer1"}` + "\n" +
-				`{"stream":"Successfully tagged demo:latest\n"}` + "\n")
+				`{"stream":"Successfully tagged demo:latest\n"}` + "\n",
+		)
 		var out strings.Builder
 
 		if err := RenderJSONMessageStream(stream, &out); err != nil {

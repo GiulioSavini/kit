@@ -127,11 +127,6 @@ linters:
       - linters:
           - forbidigo
         path: cli/
-    paths:
-      - '.*\.pb\.go$'
-      - third_party$
-      - builtin$
-      - examples$
 issues:
   max-issues-per-linter: 0
   max-same-issues: 0
@@ -141,8 +136,3 @@ formatters:
     - goimports
   exclusions:
     generated: lax
-    paths:
-      - '.*\.pb\.go$'
-      - third_party$
-      - builtin$
-      - examples$

@@ -15,7 +15,6 @@ import (
 	buildkit "github.com/moby/buildkit/client"
 	"github.com/moby/buildkit/session"
 	"github.com/moby/buildkit/session/auth/authprovider"
-
 	"go.getarcane.app/builds/types"
 	"go.getarcane.app/kit/pkg/utils"
 )
@@ -145,7 +144,6 @@ func (b *Service) buildWithBuildkitSessionInternal(
 	}()
 
 	resp, err := session.Client.Solve(ctx, nil, solveOpt, statusCh)
-
 	if err != nil {
 		err = wrapBuildkitSolveErrorInternal(err, providerName)
 		buildErr = err
@@ -254,7 +252,7 @@ func buildTimeoutDurationInternal(settingSeconds int) time.Duration {
 	return defaultBuildTimeout
 }
 
-func (b *Service) resolveProviderInternal(override string, defaultProvider string) (string, buildProvider, error) {
+func (b *Service) resolveProviderInternal(override, defaultProvider string) (string, buildProvider, error) {
 	providerName := strings.ToLower(strings.TrimSpace(override))
 	if providerName == "" {
 		providerName = strings.ToLower(strings.TrimSpace(defaultProvider))

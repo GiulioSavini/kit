@@ -27,7 +27,7 @@ func AppendImageUpdateRecordIDToOldIDs(oldIDs []string, recordID string) []strin
 }
 
 // ResolveContainerImageMatch finds the new image reference for a running container.
-func ResolveContainerImageMatch(c container.Summary, inspect *container.InspectResponse, oldIDToNewRef map[string]string, updatedNorm map[string]string) (newRef, match string) {
+func ResolveContainerImageMatch(c container.Summary, inspect *container.InspectResponse, oldIDToNewRef, updatedNorm map[string]string) (newRef, match string) {
 	if c.ImageID != "" {
 		if nr, ok := oldIDToNewRef[c.ImageID]; ok {
 			return nr, c.ImageID

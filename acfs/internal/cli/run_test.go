@@ -15,8 +15,10 @@ import (
 	acfstypes "go.getarcane.app/acfs/types"
 )
 
-var modTimePattern = regexp.MustCompile(`"modTime":"[^"]+"`)
-var modTimeUnixNanoPattern = regexp.MustCompile(`"modTimeUnixNano":[0-9]+`)
+var (
+	modTimePattern         = regexp.MustCompile(`"modTime":"[^"]+"`)
+	modTimeUnixNanoPattern = regexp.MustCompile(`"modTimeUnixNano":[0-9]+`)
+)
 
 func runCommand(t *testing.T, args []string, stdin string) (int, []byte, string) {
 	t.Helper()

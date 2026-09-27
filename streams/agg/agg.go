@@ -210,7 +210,7 @@ type pollerSet[T any] struct {
 }
 
 // sync starts, restarts, and stops pollers so the set matches items exactly.
-func (s *pollerSet[T]) sync(items []T, keyFunc func(T) string, versionFunc func(T) string) {
+func (s *pollerSet[T]) sync(items []T, keyFunc, versionFunc func(T) string) {
 	current := make(map[string]struct{}, len(items))
 	for _, item := range items {
 		key := keyFunc(item)

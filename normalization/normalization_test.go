@@ -41,9 +41,11 @@ func TestText(t *testing.T) {
 
 func TestNormalize(t *testing.T) {
 	optional := " e\u0301 "
-	input := sample{Name: optional, Unicode: optional, Trim: optional, Optional: &optional,
+	input := sample{
+		Name: optional, Unicode: optional, Trim: optional, Optional: &optional,
 		Secret: " e\u0301 ", Map: map[string]string{" e\u0301 ": " e\u0301 "},
-		Children: []sample{{Name: " child "}}, Next: &sample{Name: " next "}}
+		Children: []sample{{Name: " child "}}, Next: &sample{Name: " next "},
+	}
 	input.Next.Next = &input
 	if err := Normalize(&input); err != nil {
 		t.Fatal(err)

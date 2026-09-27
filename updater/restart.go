@@ -20,7 +20,7 @@ import (
 // RestartContainersUsingOldImages restarts running containers matching old image
 // IDs or refs. If dependency sorting detects a cycle, containers are restarted
 // in discovery order to preserve historical best-effort behavior.
-func (s *Service) RestartContainersUsingOldImages(ctx context.Context, oldIDToNewRef map[string]string, oldRefToNewRef map[string]string) ([]ResourceResult, error) {
+func (s *Service) RestartContainersUsingOldImages(ctx context.Context, oldIDToNewRef, oldRefToNewRef map[string]string) ([]ResourceResult, error) {
 	dockerClient, err := s.dockerClient(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("docker connect: %w", err)

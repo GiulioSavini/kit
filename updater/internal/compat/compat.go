@@ -16,8 +16,10 @@ import (
 	"github.com/moby/moby/client/pkg/versions"
 )
 
-const networkScopedMacAddressMinAPIVersion = "1.44"
-const multiEndpointContainerCreateMinAPIVersion = "1.44"
+const (
+	networkScopedMacAddressMinAPIVersion      = "1.44"
+	multiEndpointContainerCreateMinAPIVersion = "1.44"
+)
 
 // ErrNilAPIClient is returned when a Docker API client is required but absent.
 var ErrNilAPIClient = errors.New("docker api client is nil")

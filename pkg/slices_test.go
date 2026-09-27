@@ -27,7 +27,7 @@ func TestUnique(t *testing.T) {
 
 	t.Run("keeps named slice type", func(t *testing.T) {
 		t.Parallel()
-		var got = Unique(namedIDs{3, 3, 1})
+		got := Unique(namedIDs{3, 3, 1})
 		if want := (namedIDs{3, 1}); !slices.Equal(got, want) {
 			t.Errorf("Unique = %v, want %v", got, want)
 		}

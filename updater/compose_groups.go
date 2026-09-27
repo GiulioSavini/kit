@@ -4,10 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"go.getarcane.app/updater/types"
-
 	"go.getarcane.app/updater/internal/compose"
 	"go.getarcane.app/updater/internal/deps"
+	"go.getarcane.app/updater/types"
 )
 
 type composeGroup struct {
