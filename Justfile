@@ -249,6 +249,38 @@ release module *args:
     # Get the module's latest version tag, ignoring non-version tags
     LATEST_TAG=$(git tag -l "${PREFIX}[0-9]*" --sort=-v:refname | head -n1 || echo "")
 
+    # Commits touching this module since its last tag, minus any whose
+    # conventional-commit scope names a different module. A commit like
+    # "fix(updater): ..." that also adds a file under docker/compat belongs to
+    # the updater changelog only. Unscoped commits stay, as they are cross-cutting.
+    MODULE_NAME="{{ module }}"
+    if [ "$MODULE_NAME" == "." ]; then
+        MODULE_NAME="kit"
+    fi
+    SUBJECTS=""
+    SKIP_ARGS=()
+    while read -r hash subject; do
+        scope=$(sed -nE 's/^[a-z]+\(([^)]+)\)!?:.*/\1/p' <<<"$subject")
+        foreign=false
+        if [ -n "$scope" ] && [ "$scope" != "$MODULE_NAME" ] && [ "$scope" != "${MODULE_NAME##*/}" ]; then
+            for other in {{ modules }}; do
+                other="${other#./}"
+                if [ "$other" == "." ]; then
+                    other="kit"
+                fi
+                if [ "$scope" == "$other" ] || [ "$scope" == "${other##*/}" ]; then
+                    foreign=true
+                    break
+                fi
+            done
+        fi
+        if [ "$foreign" == true ]; then
+            SKIP_ARGS+=(--skip-commit "$hash")
+        else
+            SUBJECTS+="$subject"$'\n'
+        fi
+    done < <(git log --no-merges --format='%H %s' "${LATEST_TAG:+${LATEST_TAG}..}HEAD" "${PATHSPEC[@]}")
+
     # Determine the release type
     if [ -n "$EXPLICIT_VERSION" ]; then
         RELEASE_TYPE="explicit"
@@ -256,20 +288,15 @@ release module *args:
         RELEASE_TYPE="$FORCE_BUMP"
     elif [ -z "$LATEST_TAG" ]; then
         RELEASE_TYPE="minor"
+    elif echo "$SUBJECTS" | grep -Eiq '^feat(\([^)]+\))?: '; then
+        RELEASE_TYPE="minor"
+    elif echo "$SUBJECTS" | grep -Eiq '^fix(\([^)]+\))?: '; then
+        RELEASE_TYPE="patch"
     else
-        # Look only at commit subjects touching this module since its last tag
-        SUBJECTS=$(git log --no-merges --format=%s "${LATEST_TAG}..HEAD" "${PATHSPEC[@]}")
-
-        if echo "$SUBJECTS" | grep -Eiq '^feat(\([^)]+\))?: '; then
-            RELEASE_TYPE="minor"
-        elif echo "$SUBJECTS" | grep -Eiq '^fix(\([^)]+\))?: '; then
-            RELEASE_TYPE="patch"
-        else
-            echo "No 'fix' or 'feat' commits found for {{ module }} since the latest release (${LATEST_TAG}). No new release will be created."
-            echo "Commits since ${LATEST_TAG}:"
-            git log --oneline --no-merges "${LATEST_TAG}..HEAD" "${PATHSPEC[@]}" || true
-            exit 0
-        fi
+        echo "No 'fix' or 'feat' commits found for {{ module }} since the latest release (${LATEST_TAG}). No new release will be created."
+        echo "Commits since ${LATEST_TAG}:"
+        git log --oneline --no-merges "${LATEST_TAG}..HEAD" "${PATHSPEC[@]}" || true
+        exit 0
     fi
 
     if [ "$RELEASE_TYPE" == "explicit" ]; then
@@ -300,7 +327,7 @@ release module *args:
         fi
     fi
 
-    CLIFF_ARGS=(--github-token "$(gh auth token)" --tag "$TAG" --tag-pattern "$TAG_PATTERN" "${CLIFF_PATH_ARGS[@]}" --unreleased)
+    CLIFF_ARGS=(--github-token "$(gh auth token)" --tag "$TAG" --tag-pattern "$TAG_PATTERN" "${CLIFF_PATH_ARGS[@]}" ${SKIP_ARGS[@]+"${SKIP_ARGS[@]}"} --unreleased)
 
     if [ "$TEST" == true ]; then
         echo "Generating changelog preview (no file write)..."
